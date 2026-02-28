@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: Servico de Motor de Compras
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/${DESAFIO_ITAU_DB_NAME}
+    username: ${DESAFIO_ITAU_DB_USER}
+    password: ${DESAFIO_ITAU_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+    jpa:
+      hibernate:
+        ddl-auto: update
+      show-sql: true
+      properties:
+        hibernate:
+          dialect: org.hibernate.dialect.PostgreSQLDialect
+          format_sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: cliente-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+server:
+  port: 8082
+
+external-endpoints:
+  itau-srv-conta-grafica:
+    name: itau-srv-conta-grafica
+    url: ${ITAU_SRV_CONTA_GRAFICA_URL:http://localhost:8080/api/contas-graficas}
+    connection-timeout: 3000
+    read-timeout: 8000
+  itau-srv-clientes:
+    name: itau-srv-clientes
+    url: ${ITAU_SRV_CLIENTES_URL:http://localhost:8080/api/clientes}
+    connection-timeout: 3000
+    read-timeout: 8000

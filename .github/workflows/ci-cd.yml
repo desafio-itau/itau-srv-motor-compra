@@ -1,0 +1,114 @@
+name: CI/CD Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch para executar os testes'
+        required: true
+        default: 'main'
+        type: string
+      environment:
+        description: 'Ambiente de execução dos testes'
+        required: false
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - development
+          - staging
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: ${DESAFIO_ITAU_DB_NAME}
+          POSTGRES_USER: ${DESAFIO_ITAU_DB_USER}
+          POSTGRES_PASSWORD: ${DESAFIO_ITAU_DB_PASSWORD}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout no código
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Exibir informações de execução
+        run: |
+          echo "======================================"
+          echo "  CI/CD Pipeline - Informações da Execução"
+          echo "======================================"
+          echo "Branch: ${{ github.event.inputs.branch || github.ref_name }}"
+          echo "Environment: ${{ github.event.inputs.environment || 'N/A' }}"
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "======================================"
+
+      - name: Configurar Java 17 e cache do Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Buildar com o Maven
+        run: mvn clean install -DskipTests
+
+      - name: Executar testes e gerar relatório de cobertura
+        run: mvn test jacoco:report jacoco:check
+        env:
+          DESAFIO_ITAU_DB_NAME: desafio_itau_db
+          DESAFIO_ITAU_DB_USER: postgres
+          DESAFIO_ITAU_DB_PASSWORD: postgres
+
+      - name: Gerar relatório de cobertura JaCoCo
+        if: always()
+        run: mvn jacoco:report
+
+      - name: Enviar cobertura para Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./target/site/jacoco/jacoco.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Exibir resumo dos testes
+        if: always()
+        run: |
+          echo "=== Resumo dos Testes ==="
+          if [ -d "target/surefire-reports" ]; then
+            echo "Relatórios de teste encontrados:"
+            ls -la target/surefire-reports/
+          fi
+
+      - name: Publicar resultados dos testes unitários
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: target/surefire-reports/**/*.xml
+          check_name: Unit Test Results
+
+      - name: Exibir resumo da cobertura de código
+        if: always()
+        run: |
+          echo "Validação de cobertura de código concluída. Veja o relatório do jacoco para mais detalhes."
+          echo "Cobertura mínima: 90% para os pacotes validator, mapper, service, e controller"
+          if [ -f "target/site/jacoco/index.html" ]; then
+            echo "Relatório do jacoco disponível em: target/site/jacoco/index.html"
+          fi
+
