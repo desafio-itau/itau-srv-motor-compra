@@ -42,6 +42,16 @@ external-endpoints:
     url: ${ITAU_SRV_CESTA_URL:http://localhost:8081/api/admin}
     connection-timeout: 3000
     read-timeout: 8000
+  itau-srv-conta-grafica:
+    name: itau-srv-conta-grafica
+    url: ${ITAU_SRV_CONTA_GRAFICA_URL:http://localhost:8080/api/contas-graficas}
+    connection-timeout: 3000
+    read-timeout: 8000
+  itau-srv-cotacoes:
+    name: itau-srv-cotacoes
+    url: ${ITAU_SRV_COTACOES_URL:http://localhost:8081/api/cotacoes}
+    connection-timeout: 3000
+    read-timeout: 8000
 
 motor:
   compras:

@@ -2,8 +2,14 @@ package com.itau.srv.motor.compras.service;
 
 import com.itau.srv.motor.compras.dto.agrupamento.AgrupamentoResponseDTO;
 import com.itau.srv.motor.compras.dto.agrupamento.ClienteAgrupamentoDTO;
+import com.itau.srv.motor.compras.dto.conta.ContaGraficaDTO;
+import com.itau.srv.motor.compras.dto.cotacao.CotacaoResponseDTO;
+import com.itau.srv.motor.compras.dto.custodia.CustodiaMasterResponseDTO;
 import com.itau.srv.motor.compras.dto.distribuicao.DistribuicaoResponseDTO;
 import com.itau.srv.motor.compras.dto.ordemcompra.CalcularQuantidadeAtivoResponse;
+import com.itau.srv.motor.compras.feign.ContasGraficasFeignClient;
+import com.itau.srv.motor.compras.feign.CotacaoFeignClient;
+import com.itau.srv.motor.compras.mapper.CustodiaMapper;
 import com.itau.srv.motor.compras.mapper.DistribuicaoMapper;
 import com.itau.srv.motor.compras.model.Custodia;
 import com.itau.srv.motor.compras.model.OrdemCompra;
@@ -16,9 +22,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +35,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +57,15 @@ class CustodiaServiceTest {
     @Mock
     private DistribuicaoMapper distribuicaoMapper;
 
+    @Mock
+    private ContasGraficasFeignClient contasGraficasFeignClient;
+
+    @Mock
+    private CotacaoFeignClient cotacaoFeignClient;
+
+    @Spy
+    private CustodiaMapper custodiaMapper = new CustodiaMapper();
+
     @InjectMocks
     private CustodiaService custodiaService;
 
@@ -57,6 +76,9 @@ class CustodiaServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Set contaMasterId property
+        ReflectionTestUtils.setField(custodiaService, "contaMasterId", 1L);
+
         // Configurar clientes
         clientes = List.of(
                 new ClienteAgrupamentoDTO(1L, "Cliente A", "12345678901", 1L, new BigDecimal("1000.00")),
@@ -476,6 +498,299 @@ class CustodiaServiceTest {
         assertThat(custodiasCliente2).isNotEmpty();
         // Cliente 2 deve ter quantidade > 0 (não deve herdar a quantidade do Cliente 1)
         assertThat(custodiasCliente2.get(0).getQuantidade()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("Deve consultar custodia master com sucesso")
+    void deveConsultarCustodiaMasterComSucesso() {
+        // Arrange
+        ContaGraficaDTO contaMaster = new ContaGraficaDTO(
+                1L,
+                "CONTA-MASTER-001",
+                "MASTER",
+                LocalDateTime.now()
+        );
+
+        Custodia custodia1 = new Custodia();
+        custodia1.setId(1L);
+        custodia1.setTicker("PETR4");
+        custodia1.setQuantidade(10);
+        custodia1.setPrecoMedio(new BigDecimal("35.50"));
+        custodia1.setContaGraficaId(1L);
+        custodia1.setDataUltimaAtualizacao(LocalDateTime.of(2026, 3, 1, 10, 0));
+
+        Custodia custodia2 = new Custodia();
+        custodia2.setId(2L);
+        custodia2.setTicker("VALE3");
+        custodia2.setQuantidade(5);
+        custodia2.setPrecoMedio(new BigDecimal("62.00"));
+        custodia2.setContaGraficaId(1L);
+        custodia2.setDataUltimaAtualizacao(LocalDateTime.of(2026, 3, 1, 10, 0));
+
+        List<Custodia> custodiasMaster = List.of(custodia1, custodia2);
+
+        CotacaoResponseDTO cotacao1 = new CotacaoResponseDTO(
+                java.time.LocalDate.now(), "PETR4", 10, new BigDecimal("35.00"),
+                new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00"));
+        CotacaoResponseDTO cotacao2 = new CotacaoResponseDTO(
+                java.time.LocalDate.now(), "VALE3", 10, new BigDecimal("62.00"),
+                new BigDecimal("64.00"), new BigDecimal("61.00"), new BigDecimal("63.50"));
+
+        when(contasGraficasFeignClient.buscarConta(1L)).thenReturn(contaMaster);
+        when(custodiaRepository.findCustodiaMaster()).thenReturn(custodiasMaster);
+        when(cotacaoFeignClient.obterCotacaoPorTicker("PETR4")).thenReturn(cotacao1);
+        when(cotacaoFeignClient.obterCotacaoPorTicker("VALE3")).thenReturn(cotacao2);
+
+        // Act
+        CustodiaMasterResponseDTO resultado = custodiaService.consultarCustodiaMaster();
+
+        // Assert
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.contaMaster()).isNotNull();
+        assertThat(resultado.contaMaster().id()).isEqualTo(1L);
+        assertThat(resultado.contaMaster().numeroConta()).isEqualTo("CONTA-MASTER-001");
+        assertThat(resultado.contaMaster().tipo()).isEqualTo("MASTER");
+        assertThat(resultado.custodia()).hasSize(2);
+        assertThat(resultado.custodia().get(0).ticker()).isEqualTo("PETR4");
+        assertThat(resultado.custodia().get(0).quantidade()).isEqualTo(10);
+        assertThat(resultado.custodia().get(0).precoMedio()).isEqualByComparingTo(new BigDecimal("35.50"));
+        assertThat(resultado.custodia().get(0).valorAtual()).isEqualByComparingTo(new BigDecimal("36.00"));
+        assertThat(resultado.custodia().get(1).ticker()).isEqualTo("VALE3");
+        assertThat(resultado.custodia().get(1).quantidade()).isEqualTo(5);
+
+        // Valor total: (10 × 36.00) + (5 × 63.50) = 360 + 317.50 = 677.50
+        assertThat(resultado.valorTotalResiduo()).isEqualByComparingTo(new BigDecimal("677.50"));
+
+        verify(contasGraficasFeignClient).buscarConta(1L);
+        verify(custodiaRepository).findCustodiaMaster();
+        verify(cotacaoFeignClient).obterCotacaoPorTicker("PETR4");
+        verify(cotacaoFeignClient).obterCotacaoPorTicker("VALE3");
+    }
+
+    @Test
+    @DisplayName("Deve consultar custodia master vazia")
+    void deveConsultarCustodiaMasterVazia() {
+        // Arrange
+        ContaGraficaDTO contaMaster = new ContaGraficaDTO(
+                1L,
+                "CONTA-MASTER-001",
+                "MASTER",
+                LocalDateTime.now()
+        );
+
+        when(contasGraficasFeignClient.buscarConta(1L)).thenReturn(contaMaster);
+        when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
+
+        // Act
+        CustodiaMasterResponseDTO resultado = custodiaService.consultarCustodiaMaster();
+
+        // Assert
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.contaMaster()).isNotNull();
+        assertThat(resultado.contaMaster().id()).isEqualTo(1L);
+        assertThat(resultado.custodia()).isEmpty();
+        assertThat(resultado.valorTotalResiduo()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        verify(contasGraficasFeignClient).buscarConta(1L);
+        verify(custodiaRepository).findCustodiaMaster();
+        verify(cotacaoFeignClient, never()).obterCotacaoPorTicker(any());
+    }
+
+    @Test
+    @DisplayName("Deve calcular valor total de resíduo corretamente")
+    void deveCalcularValorTotalDeResiduoCorretamente() {
+        // Arrange
+        ContaGraficaDTO contaMaster = new ContaGraficaDTO(
+                1L,
+                "CONTA-MASTER-001",
+                "MASTER",
+                LocalDateTime.now()
+        );
+
+        Custodia custodia1 = new Custodia();
+        custodia1.setTicker("PETR4");
+        custodia1.setQuantidade(100);
+        custodia1.setPrecoMedio(new BigDecimal("35.00"));
+        custodia1.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        Custodia custodia2 = new Custodia();
+        custodia2.setTicker("VALE3");
+        custodia2.setQuantidade(50);
+        custodia2.setPrecoMedio(new BigDecimal("62.00"));
+        custodia2.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        Custodia custodia3 = new Custodia();
+        custodia3.setTicker("ITUB4");
+        custodia3.setQuantidade(200);
+        custodia3.setPrecoMedio(new BigDecimal("30.00"));
+        custodia3.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        List<Custodia> custodiasMaster = List.of(custodia1, custodia2, custodia3);
+
+        when(contasGraficasFeignClient.buscarConta(1L)).thenReturn(contaMaster);
+        when(custodiaRepository.findCustodiaMaster()).thenReturn(custodiasMaster);
+        when(cotacaoFeignClient.obterCotacaoPorTicker("PETR4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "PETR4", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("VALE3"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "VALE3", 10,
+                        new BigDecimal("62.00"), new BigDecimal("64.00"), new BigDecimal("61.00"), new BigDecimal("63.50")));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("ITUB4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "ITUB4", 10,
+                        new BigDecimal("30.00"), new BigDecimal("31.00"), new BigDecimal("29.50"), new BigDecimal("30.75")));
+
+        // Act
+        CustodiaMasterResponseDTO resultado = custodiaService.consultarCustodiaMaster();
+
+        // Assert
+        // Valor total: (100 × 36.00) + (50 × 63.50) + (200 × 30.75)
+        //             = 3600 + 3175 + 6150 = 12925
+        assertThat(resultado.valorTotalResiduo()).isEqualByComparingTo(new BigDecimal("12925.00"));
+        assertThat(resultado.custodia()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("Deve consultar custodia master com um único ativo")
+    void deveConsultarCustodiaMasterComUmUnicoAtivo() {
+        // Arrange
+        ContaGraficaDTO contaMaster = new ContaGraficaDTO(
+                1L,
+                "CONTA-MASTER-001",
+                "MASTER",
+                LocalDateTime.now()
+        );
+
+        Custodia custodia = new Custodia();
+        custodia.setTicker("PETR4");
+        custodia.setQuantidade(25);
+        custodia.setPrecoMedio(new BigDecimal("35.50"));
+        custodia.setDataUltimaAtualizacao(LocalDateTime.of(2026, 3, 1, 10, 0));
+
+        when(contasGraficasFeignClient.buscarConta(1L)).thenReturn(contaMaster);
+        when(custodiaRepository.findCustodiaMaster()).thenReturn(List.of(custodia));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("PETR4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "PETR4", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+
+        // Act
+        CustodiaMasterResponseDTO resultado = custodiaService.consultarCustodiaMaster();
+
+        // Assert
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.custodia()).hasSize(1);
+        assertThat(resultado.custodia().get(0).ticker()).isEqualTo("PETR4");
+        assertThat(resultado.custodia().get(0).quantidade()).isEqualTo(25);
+        // Valor total: 25 × 36.00 = 900
+        assertThat(resultado.valorTotalResiduo()).isEqualByComparingTo(new BigDecimal("900.00"));
+    }
+
+    @Test
+    @DisplayName("Deve consultar custodia master com todos os 5 ativos da cesta")
+    void deveConsultarCustodiaMasterComTodosAtivos() {
+        // Arrange
+        ContaGraficaDTO contaMaster = new ContaGraficaDTO(
+                1L,
+                "CONTA-MASTER-001",
+                "MASTER",
+                LocalDateTime.now()
+        );
+
+        Custodia custodia1 = new Custodia();
+        custodia1.setTicker("PETR4");
+        custodia1.setQuantidade(10);
+        custodia1.setPrecoMedio(new BigDecimal("35.50"));
+        custodia1.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        Custodia custodia2 = new Custodia();
+        custodia2.setTicker("VALE3");
+        custodia2.setQuantidade(5);
+        custodia2.setPrecoMedio(new BigDecimal("62.00"));
+        custodia2.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        Custodia custodia3 = new Custodia();
+        custodia3.setTicker("BBDC4");
+        custodia3.setQuantidade(15);
+        custodia3.setPrecoMedio(new BigDecimal("25.00"));
+        custodia3.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        Custodia custodia4 = new Custodia();
+        custodia4.setTicker("ITUB4");
+        custodia4.setQuantidade(8);
+        custodia4.setPrecoMedio(new BigDecimal("30.00"));
+        custodia4.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        Custodia custodia5 = new Custodia();
+        custodia5.setTicker("ABEV3");
+        custodia5.setQuantidade(20);
+        custodia5.setPrecoMedio(new BigDecimal("12.50"));
+        custodia5.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        List<Custodia> custodiasMaster = List.of(custodia1, custodia2, custodia3, custodia4, custodia5);
+
+        when(contasGraficasFeignClient.buscarConta(1L)).thenReturn(contaMaster);
+        when(custodiaRepository.findCustodiaMaster()).thenReturn(custodiasMaster);
+        when(cotacaoFeignClient.obterCotacaoPorTicker("PETR4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "PETR4", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("VALE3"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "VELE3", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("BBDC4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "BBDC4", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("ITUB4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "ITUB4", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("ABEV3"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "ABEV3", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+
+        // Act
+        CustodiaMasterResponseDTO resultado = custodiaService.consultarCustodiaMaster();
+
+        // Assert
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.custodia()).hasSize(5);
+        assertThat(resultado.custodia().stream().map(c -> c.ticker()).toList())
+                .containsExactlyInAnyOrder("PETR4", "VALE3", "BBDC4", "ITUB4", "ABEV3");
+
+        // Valor total: (10×36) + (5×63.5) + (15×25.5) + (8×30.75) + (20×12.75)
+        //             = 360 + 317.5 + 382.5 + 246 + 255 = 1561
+        assertThat(resultado.valorTotalResiduo()).isEqualByComparingTo(new BigDecimal("2088.00"));
+
+        verify(cotacaoFeignClient, times(5)).obterCotacaoPorTicker(any());
+    }
+
+    @Test
+    @DisplayName("Deve consultar custodia master com quantidade zero")
+    void deveConsultarCustodiaMasterComQuantidadeZero() {
+        // Arrange
+        ContaGraficaDTO contaMaster = new ContaGraficaDTO(
+                1L,
+                "CONTA-MASTER-001",
+                "MASTER",
+                LocalDateTime.now()
+        );
+
+        Custodia custodia = new Custodia();
+        custodia.setTicker("PETR4");
+        custodia.setQuantidade(0);
+        custodia.setPrecoMedio(new BigDecimal("35.50"));
+        custodia.setDataUltimaAtualizacao(LocalDateTime.now());
+
+        when(contasGraficasFeignClient.buscarConta(1L)).thenReturn(contaMaster);
+        when(custodiaRepository.findCustodiaMaster()).thenReturn(List.of(custodia));
+        when(cotacaoFeignClient.obterCotacaoPorTicker("PETR4"))
+                .thenReturn(new CotacaoResponseDTO(java.time.LocalDate.now(), "PETR4", 10,
+                        new BigDecimal("35.00"), new BigDecimal("36.50"), new BigDecimal("34.50"), new BigDecimal("36.00")));
+
+        // Act
+        CustodiaMasterResponseDTO resultado = custodiaService.consultarCustodiaMaster();
+
+        // Assert
+        assertThat(resultado.custodia()).hasSize(1);
+        assertThat(resultado.custodia().get(0).quantidade()).isZero();
+        assertThat(resultado.valorTotalResiduo()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 }
 
