@@ -3,15 +3,21 @@ package com.itau.srv.motor.compras.service;
 import com.itau.srv.motor.compras.dto.agrupamento.AgrupamentoResponseDTO;
 import com.itau.srv.motor.compras.dto.agrupamento.ClienteAgrupamentoDTO;
 import com.itau.srv.motor.compras.dto.ativo.AtivoResponseDTO;
+import com.itau.srv.motor.compras.dto.conta.ContaGraficaDTO;
+import com.itau.srv.motor.compras.dto.cotacao.CotacaoResponseDTO;
+import com.itau.srv.motor.compras.dto.custodia.CustodiaMasterResponseDTO;
+import com.itau.srv.motor.compras.dto.custodia.CustodiaResponseDTO;
 import com.itau.srv.motor.compras.dto.distribuicao.DistribuicaoResponseDTO;
 import com.itau.srv.motor.compras.dto.ordemcompra.CalcularQuantidadeAtivoResponse;
-import com.itau.srv.motor.compras.mapper.DistribuicaoMapper;
+import com.itau.srv.motor.compras.feign.ContasGraficasFeignClient;
+import com.itau.srv.motor.compras.feign.CotacaoFeignClient;
+import com.itau.srv.motor.compras.mapper.CustodiaMapper;
 import com.itau.srv.motor.compras.model.Custodia;
 import com.itau.srv.motor.compras.model.OrdemCompra;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
-import com.itau.srv.motor.compras.repository.DistribuicaoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,8 +36,12 @@ public class CustodiaService {
     private final CustodiaRepository custodiaRepository;
     private final EventoIRService eventoIRService;
     private final ResiduoService residuoService;
-    private final DistribuicaoRepository distribuicaoRepository;
-    private final DistribuicaoMapper distribuicaoMapper;
+    private final ContasGraficasFeignClient contasGraficasFeignClient;
+    private final CotacaoFeignClient cotacaoFeignClient;
+    private final CustodiaMapper custodiaMapper;
+
+    @Value("${motor.compras.conta-master-id}")
+    private Long contaMasterId;
 
     @Transactional
     public List<DistribuicaoResponseDTO> distribuirCustodias(CalcularQuantidadeAtivoResponse resultadoCalculoAtivos, AgrupamentoResponseDTO agrupamento) {
@@ -85,7 +95,6 @@ public class CustodiaService {
                     continue;
                 }
 
-                // ✅ RESETAR custodiaExistente para cada iteração
                 Custodia custodiaExistente = null;
 
                 List<Custodia> custodiasCliente = custodiaRepository.findCustodiaCliente(cliente.clienteId());
@@ -112,7 +121,6 @@ public class CustodiaService {
                     log.info("   Custodia criada: {} ações de {} com PM = R$ {}",
                             quantidadeParaCliente, ordemCompra.getTicker(), precoMedio);
 
-                    // ✅ Publicar evento IR apenas UMA vez
                     eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario());
 
                 } else {
@@ -141,11 +149,9 @@ public class CustodiaService {
                     log.info("   Custodia atualizada: {} ações de {} com PM = R$ {}",
                             custodiaExistente.getQuantidade(), ordemCompra.getTicker(), novoPrecoMedio);
 
-                    // ✅ Publicar evento IR apenas UMA vez
                     eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario());
                 }
 
-                // ✅ Registrar ativo distribuído para este cliente
                 distribuicoesPorCliente.computeIfAbsent(cliente.clienteId(), k -> new ArrayList<>())
                         .add(new AtivoResponseDTO(ordemCompra.getTicker(), quantidadeParaCliente));
 
@@ -160,7 +166,6 @@ public class CustodiaService {
             residuoService.atualizarResiduosCustodiaMaster(ordemCompra.getTicker(), residuo, ordemCompra.getPrecoUnitario(), custodiasMaster);
         }
 
-        // ✅ MOVER PARA FORA DO LOOP: Criar distribuições apenas UMA vez, após processar TODOS os ativos
         List<DistribuicaoResponseDTO> distribuicoes = new ArrayList<>();
 
         for (ClienteAgrupamentoDTO cliente : agrupamento.agrupamentoCliente()) {
@@ -179,5 +184,29 @@ public class CustodiaService {
 
         log.info("=== Distribuição concluída para todos os {} cliente(s) ===", distribuicoes.size());
         return distribuicoes;
+    }
+
+    @Transactional(readOnly = true)
+    public CustodiaMasterResponseDTO consultarCustodiaMaster() {
+        log.info("Consultando custodia master");
+
+        BigDecimal valorTotalResiduo = BigDecimal.ZERO;
+        List<CustodiaResponseDTO> custodias = new ArrayList<>();
+
+        ContaGraficaDTO contaMaster = contasGraficasFeignClient.buscarConta(contaMasterId);
+        log.info("Conta master encontrada: ID {}, Tipo {}", contaMaster.id(), contaMaster.tipoConta());
+
+        log.info("Buscando custodias master");
+        List<Custodia> custodiasMaster = custodiaRepository.findCustodiaMaster();
+        log.info("Custodias master encontradas: {}", custodiasMaster.size());
+
+        for (Custodia custodia : custodiasMaster) {
+            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
+            valorTotalResiduo = valorTotalResiduo.add(cotacao.precoFechamento().multiply(BigDecimal.valueOf(custodia.getQuantidade())));
+
+            custodias.add(custodiaMapper.mapearParaCustodiaResponse(custodia, cotacao.precoFechamento()));
+        }
+
+        return custodiaMapper.mapearParaCustodiaMasterResponseDTO(contaMaster, custodias, valorTotalResiduo);
     }
 }
