@@ -209,4 +209,21 @@ public class CustodiaService {
 
         return custodiaMapper.mapearParaCustodiaMasterResponseDTO(contaMaster, custodias, valorTotalResiduo);
     }
+
+    @Transactional(readOnly = true)
+    public List<CustodiaResponseDTO> consultarCustodiasCliente(Long clienteId) {
+        log.info("Consultando custodia para cliente: {}", clienteId);
+        List<CustodiaResponseDTO> custodiasResponse = new ArrayList<>();
+
+        List<Custodia> custodiasCliente = custodiaRepository.findCustodiaCliente(clienteId);
+        log.info("Custodias encontradas: {}", custodiasCliente.size());
+
+        for (Custodia custodia : custodiasCliente) {
+            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
+
+            custodiasResponse.add(custodiaMapper.mapearParaCustodiaResponse(custodia, cotacao.precoFechamento()));
+        }
+
+        return custodiasResponse;
+    }
 }
