@@ -38,7 +38,7 @@
 		<java.version>17</java.version>
 		<spring-cloud.version>2024.0.0</spring-cloud.version>
 		<jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
-		<jacoco.coverage.exclusions>com/itau/srv/motor/compras/feign/**,com/itau/srv/motor/compras/util/**,com/itau/srv/motor/compras/exception/**,com/itau/srv/motor/compras/model/**,com/itau/srv/motor/compras/repository/**,com/itau/srv/motor/compras/dto/**,com/itau/srv/motor/compras/annotation/**,com/itau/srv/motor/compras/ServicoDeMotorDeComprasApplication.class</jacoco.coverage.exclusions>
+		<jacoco.coverage.exclusions>com/itau/srv/motor/compras/kafka/**,com/itau/srv/motor/compras/feign/**,com/itau/srv/motor/compras/util/**,com/itau/srv/motor/compras/exception/**,com/itau/srv/motor/compras/model/**,com/itau/srv/motor/compras/repository/**,com/itau/srv/motor/compras/dto/**,com/itau/srv/motor/compras/annotation/**,com/itau/srv/motor/compras/ServicoDeMotorDeComprasApplication.class</jacoco.coverage.exclusions>
 	</properties>
 	<dependencies>
 		<dependency>
