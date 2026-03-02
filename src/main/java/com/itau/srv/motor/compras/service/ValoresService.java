@@ -27,14 +27,6 @@ public class ValoresService {
         List<EventoIR> investidosPorCliente = eventoIRRepository.findInvestidoPorCliente(clienteId);
         List<EventoIR> vendidoPorCliente = eventoIRRepository.findVendidoPorCliente(clienteId);
 
-        if (investidosPorCliente.isEmpty()) {
-            log.info("Nenhum evento IR encontrado para o cliente: {} / Valor investido: R$ {}", clienteId, valorInvestido);
-            return new ValoresResponseDTO(
-                    valorInvestido,
-                    valorVendido
-            );
-        }
-
         for (EventoIR evento : investidosPorCliente) {
             valorInvestido = valorInvestido.add(evento.getValorBase());
         }
