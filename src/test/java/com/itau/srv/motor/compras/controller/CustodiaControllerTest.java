@@ -64,7 +64,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(custodias);
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId)
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -92,7 +92,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(List.of());
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId)
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -119,7 +119,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(List.of(custodia));
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId)
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -148,7 +148,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(custodias);
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId)
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -190,7 +190,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId2)).thenReturn(List.of(custodia2));
 
         // Act & Assert - Cliente 1
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId1)
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId1)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -198,7 +198,7 @@ class CustodiaControllerTest {
                 .andExpect(jsonPath("$[0].quantidade").value(100));
 
         // Act & Assert - Cliente 2
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId2)
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId2)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
@@ -218,7 +218,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(List.of());
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId))
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId))
                 .andExpect(status().isOk());
     }
 
@@ -239,7 +239,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(List.of(custodia));
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/123")
+        mockMvc.perform(get("/api/custodias/123")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].ticker").value("PETR4"));
@@ -256,7 +256,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(List.of());
 
         // Act & Assert
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId))
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON));
     }
@@ -270,7 +270,7 @@ class CustodiaControllerTest {
         when(custodiaService.consultarCustodiasCliente(clienteId)).thenReturn(List.of());
 
         // Act
-        mockMvc.perform(get("/custodias/{clienteId}", clienteId))
+        mockMvc.perform(get("/api/custodias/{clienteId}", clienteId))
                 .andExpect(status().isOk());
 
         // Assert
