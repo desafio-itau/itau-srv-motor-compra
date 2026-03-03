@@ -7,6 +7,7 @@ import com.itau.srv.motor.compras.dto.motorcompra.MotorCompraRequestDTO;
 import com.itau.srv.motor.compras.dto.motorcompra.MotorCompraResponseDTO;
 import com.itau.srv.motor.compras.dto.ordemcompra.CalcularQuantidadeAtivoResponse;
 import com.itau.srv.motor.compras.dto.residuo.ResiduoContaMasterDTO;
+import com.itau.srv.motor.compras.feign.ClientesFeignClient;
 import com.itau.srv.motor.compras.model.Custodia;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
 import com.itau.srv.motor.compras.repository.OrdemCompraRepository;
@@ -31,6 +32,7 @@ public class MotorCompraService {
     private final QuantidadeAtivoService quantidadeAtivoService;
     private final ClienteService clienteService;
     private final OrdemCompraRepository ordemCompraRepository;
+    private final ClientesFeignClient clientesFeignClient;
 
     @Transactional
     public MotorCompraResponseDTO acionarMotorCompra(MotorCompraRequestDTO request) {
@@ -65,6 +67,8 @@ public class MotorCompraService {
         for (DistribuicaoResponseDTO dist : distribuicaoCustodias) {
             totalEventosIR += dist.ativos().size();
         }
+
+        clientesFeignClient.criarSnapshots(request.dataReferencia());
 
         return new MotorCompraResponseDTO(
                 request.dataReferencia().atTime(LocalTime.now()),
