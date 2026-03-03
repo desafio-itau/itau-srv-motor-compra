@@ -47,7 +47,7 @@ public class MotorCompraService {
 
         CalcularQuantidadeAtivoResponse resultadoCalculo = quantidadeAtivoService.calcularQuantidadePorAtivo(agrupamentoClientes.valorConsolidado(), request.dataReferencia());
 
-        List<DistribuicaoResponseDTO> distribuicaoCustodias = custodiaService.distribuirCustodias(resultadoCalculo, agrupamentoClientes);
+        List<DistribuicaoResponseDTO> distribuicaoCustodias = custodiaService.distribuirCustodias(resultadoCalculo, agrupamentoClientes, request.dataReferencia());
 
         List<Custodia> residuos = custodiaRepository.findCustodiaMaster();
 

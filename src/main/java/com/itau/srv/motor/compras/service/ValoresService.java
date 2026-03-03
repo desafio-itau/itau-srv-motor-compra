@@ -1,7 +1,10 @@
 package com.itau.srv.motor.compras.service;
 
+import com.itau.srv.motor.compras.dto.ir.EventoIRSumarioDTO;
+import com.itau.srv.motor.compras.dto.historico.HistoricoAportesResponseDTO;
 import com.itau.srv.motor.compras.dto.valor.ValoresPorDataResponseDTO;
 import com.itau.srv.motor.compras.dto.valor.ValoresResponseDTO;
+import com.itau.srv.motor.compras.mapper.HistoricoMapper;
 import com.itau.srv.motor.compras.model.EventoIR;
 import com.itau.srv.motor.compras.repository.EventoIRRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -19,6 +23,7 @@ import java.util.List;
 public class ValoresService {
 
     private final EventoIRRepository eventoIRRepository;
+    private final HistoricoMapper historicoMapper;
 
     @Transactional(readOnly = true)
     public ValoresResponseDTO calcularValoresCliente(Long clienteId) {
@@ -73,5 +78,25 @@ public class ValoresService {
                         valorVendido
                 )
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<HistoricoAportesResponseDTO> consultarHistoricoAportes(Long clienteId) {
+        log.info("Consultando histórico de aportes por cliente: {}", clienteId);
+
+        List<HistoricoAportesResponseDTO> historicos = new ArrayList<>();
+
+        List<EventoIRSumarioDTO> sumarios = eventoIRRepository.findSumarioEventosPorDataECliente(clienteId);
+
+        log.info(String.valueOf(sumarios.size()));
+
+        for (EventoIRSumarioDTO sumario : sumarios) {
+            HistoricoAportesResponseDTO historico = historicoMapper.mapearParaHistoricoAportes(sumario);
+            historicos.add(historico);
+        }
+
+        log.info("Quantidade de históricos encontrados para cliente {}: {}", clienteId, historicos.size());
+
+        return historicos;
     }
 }

@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +26,11 @@ public class EventoIRService {
     private final EventoIRMapper eventoIRMapper;
 
     @Transactional
-    public void publicarEventoIR(ClienteAgrupamentoDTO cliente, String ticker, int quantidade, BigDecimal precoUnitario) {
+    public void publicarEventoIR(ClienteAgrupamentoDTO cliente, String ticker, int quantidade, BigDecimal precoUnitario, LocalDate dataReferencia) {
         log.info("   Publicando evento IR para cliente {} - {} ({} ações)",
                 cliente.clienteId(), ticker, quantidade);
 
-        IRDedoDuroEventDTO evento = criarParaCompra(cliente.clienteId(), cliente.cpf(), ticker, quantidade, precoUnitario);
+        IRDedoDuroEventDTO evento = criarParaCompra(cliente.clienteId(), cliente.cpf(), ticker, quantidade, precoUnitario, dataReferencia);
 
         irEventProducer.publicarEventoIRDedoDuro(evento);
 
@@ -43,7 +45,9 @@ public class EventoIRService {
             String cpf,
             String ticker,
             Integer quantidade,
-            BigDecimal precoUnitario) {
+            BigDecimal precoUnitario,
+            LocalDate dataReferencia
+    ) {
 
         BigDecimal valorOperacao = precoUnitario.multiply(BigDecimal.valueOf(quantidade));
 
@@ -63,7 +67,7 @@ public class EventoIRService {
                 valorOperacao,
                 aliquota,
                 valorIR,
-                LocalDateTime.now()
+                dataReferencia.atTime(LocalTime.now())
         );
     }
 }

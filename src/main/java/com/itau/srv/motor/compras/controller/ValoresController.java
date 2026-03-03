@@ -1,5 +1,6 @@
 package com.itau.srv.motor.compras.controller;
 
+import com.itau.srv.motor.compras.dto.historico.HistoricoAportesResponseDTO;
 import com.itau.srv.motor.compras.dto.valor.ValoresPorDataResponseDTO;
 import com.itau.srv.motor.compras.dto.valor.ValoresResponseDTO;
 import com.itau.srv.motor.compras.service.ValoresService;
@@ -8,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/valores")
@@ -27,5 +29,10 @@ public class ValoresController {
             @RequestParam(name = "data") LocalDate data
     ) {
         return ResponseEntity.ok(valoresService.consultarPorClienteEData(clienteId, data));
+    }
+
+    @GetMapping("/historico/{clienteId}")
+    public ResponseEntity<List<HistoricoAportesResponseDTO>> consultarHistoricoAportes(@PathVariable Long clienteId) {
+        return ResponseEntity.ok(valoresService.consultarHistoricoAportes(clienteId));
     }
 }
