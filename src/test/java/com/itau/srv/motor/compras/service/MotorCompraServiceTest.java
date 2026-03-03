@@ -107,7 +107,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -123,7 +123,7 @@ class MotorCompraServiceTest {
 
         verify(clienteService, times(1)).agruparClientes();
         verify(quantidadeAtivoService, times(1)).calcularQuantidadePorAtivo(any(), any());
-        verify(custodiaService, times(1)).distribuirCustodias(any(), any());
+        verify(custodiaService, times(1)).distribuirCustodias(any(), any(), any());
     }
 
     @Test
@@ -151,7 +151,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -172,7 +172,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -226,7 +226,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -256,7 +256,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(residuosMaster);
 
         // Act
@@ -277,7 +277,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -294,7 +294,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -311,7 +311,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamento);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoes);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoes);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
@@ -339,7 +339,7 @@ class MotorCompraServiceTest {
         when(ordemCompraRepository.existsByDataExecucao(any())).thenReturn(false);
         when(clienteService.agruparClientes()).thenReturn(agrupamentoUnico);
         when(quantidadeAtivoService.calcularQuantidadePorAtivo(any(), any())).thenReturn(calculoAtivos);
-        when(custodiaService.distribuirCustodias(any(), any())).thenReturn(distribuicoesUnicas);
+        when(custodiaService.distribuirCustodias(any(), any(), any())).thenReturn(distribuicoesUnicas);
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act

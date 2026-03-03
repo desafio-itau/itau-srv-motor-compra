@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +45,7 @@ public class CustodiaService {
     private Long contaMasterId;
 
     @Transactional
-    public List<DistribuicaoResponseDTO> distribuirCustodias(CalcularQuantidadeAtivoResponse resultadoCalculoAtivos, AgrupamentoResponseDTO agrupamento) {
+    public List<DistribuicaoResponseDTO> distribuirCustodias(CalcularQuantidadeAtivoResponse resultadoCalculoAtivos, AgrupamentoResponseDTO agrupamento, LocalDate dataReferencia) {
         log.info("Total de clientes: {}", agrupamento.agrupamentoCliente().size());
         log.info("Valor consolidado: R$ {}", agrupamento.valorConsolidado());
 
@@ -121,7 +122,7 @@ public class CustodiaService {
                     log.info("   Custodia criada: {} ações de {} com PM = R$ {}",
                             quantidadeParaCliente, ordemCompra.getTicker(), precoMedio);
 
-                    eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario());
+                    eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario(), dataReferencia);
 
                 } else {
                     log.info("   Cliente já possui {}. Atualizando custodia.", ordemCompra.getTicker());
@@ -149,7 +150,7 @@ public class CustodiaService {
                     log.info("   Custodia atualizada: {} ações de {} com PM = R$ {}",
                             custodiaExistente.getQuantidade(), ordemCompra.getTicker(), novoPrecoMedio);
 
-                    eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario());
+                    eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario(), dataReferencia);
                 }
 
                 distribuicoesPorCliente.computeIfAbsent(cliente.clienteId(), k -> new ArrayList<>())

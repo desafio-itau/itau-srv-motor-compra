@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -63,7 +64,7 @@ class EventoIRServiceTest {
         when(eventoIRRepository.save(any(EventoIR.class))).thenReturn(eventoIREntity);
 
         // Act
-        eventoIRService.publicarEventoIR(cliente, ticker, quantidade, precoUnitario);
+        eventoIRService.publicarEventoIR(cliente, ticker, quantidade, precoUnitario, LocalDate.now());
 
         // Assert
         verify(irEventProducer, times(1)).publicarEventoIRDedoDuro(any(IRDedoDuroEventDTO.class));
@@ -85,7 +86,7 @@ class EventoIRServiceTest {
         when(eventoIRMapper.mapearParaEventoIr(any(IRDedoDuroEventDTO.class))).thenReturn(eventoIREntity);
 
         // Act
-        eventoIRService.publicarEventoIR(cliente, ticker, quantidade, precoUnitario);
+        eventoIRService.publicarEventoIR(cliente, ticker, quantidade, precoUnitario, LocalDate.now());
 
         // Assert
         verify(irEventProducer).publicarEventoIRDedoDuro(eventoCaptor.capture());
@@ -107,7 +108,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "PETR4",
                 100,
-                new BigDecimal("35.50")
+                new BigDecimal("35.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -124,7 +126,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "PETR4",
                 100,
-                new BigDecimal("35.50")
+                new BigDecimal("35.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -142,7 +145,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "WEGE3",
                 10,
-                new BigDecimal("40.00")
+                new BigDecimal("40.00"),
+                LocalDate.now()
         );
 
         // Assert
@@ -161,7 +165,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "VALE3",
                 1000,
-                new BigDecimal("62.50")
+                new BigDecimal("62.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -180,7 +185,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "PETR4",
                 100,
-                new BigDecimal("35.50")
+                new BigDecimal("35.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -196,7 +202,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "PETR4",
                 100,
-                new BigDecimal("35.50")
+                new BigDecimal("35.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -212,7 +219,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "PETR4",
                 100,
-                new BigDecimal("35.50")
+                new BigDecimal("35.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -228,7 +236,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "PETR4",
                 100,
-                new BigDecimal("35.50")
+                new BigDecimal("35.50"),
+                LocalDate.now()
         );
 
         // Assert
@@ -245,7 +254,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "ITUB4",
                 333,
-                new BigDecimal("30.00")
+                new BigDecimal("30.00"),
+                LocalDate.now()
         );
 
         // Assert
@@ -263,9 +273,9 @@ class EventoIRServiceTest {
         when(eventoIRMapper.mapearParaEventoIr(any(IRDedoDuroEventDTO.class))).thenReturn(eventoIREntity);
 
         // Act
-        eventoIRService.publicarEventoIR(cliente, "PETR4", 100, new BigDecimal("35.50"));
-        eventoIRService.publicarEventoIR(cliente, "VALE3", 50, new BigDecimal("62.00"));
-        eventoIRService.publicarEventoIR(cliente, "ITUB4", 200, new BigDecimal("30.00"));
+        eventoIRService.publicarEventoIR(cliente, "PETR4", 100, new BigDecimal("35.50"), LocalDate.now());
+        eventoIRService.publicarEventoIR(cliente, "VALE3", 50, new BigDecimal("62.00"), LocalDate.now());
+        eventoIRService.publicarEventoIR(cliente, "ITUB4", 200, new BigDecimal("30.00"), LocalDate.now());
 
         // Assert
         verify(irEventProducer, times(3)).publicarEventoIRDedoDuro(any(IRDedoDuroEventDTO.class));
@@ -281,7 +291,8 @@ class EventoIRServiceTest {
                 "12345678901",
                 "WEGE3",
                 1,
-                new BigDecimal("40.00")
+                new BigDecimal("40.00"),
+                LocalDate.now()
         );
 
         // Assert

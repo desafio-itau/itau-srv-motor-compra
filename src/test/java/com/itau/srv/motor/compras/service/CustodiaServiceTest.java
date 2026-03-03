@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -109,11 +110,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         assertThat(resultado).hasSize(2);
@@ -124,7 +125,7 @@ class CustodiaServiceTest {
 
         // Verificar que custodias foram criadas (4 = 2 clientes × 2 ativos)
         verify(custodiaRepository, times(4)).save(any(Custodia.class));
-        verify(eventoIRService, times(4)).publicarEventoIR(any(), any(), anyInt(), any());
+        verify(eventoIRService, times(4)).publicarEventoIR(any(), any(), anyInt(), any(), any());
         verify(residuoService, times(2)).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
     }
 
@@ -139,11 +140,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(List.of(custodiaMaster));
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         assertThat(resultado).hasSize(2);
@@ -168,11 +169,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         ArgumentCaptor<Custodia> custodiaCaptor = ArgumentCaptor.forClass(Custodia.class);
@@ -199,11 +200,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaCliente(1L)).thenReturn(List.of(custodiaExistente));
         when(custodiaRepository.findCustodiaCliente(2L)).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         ArgumentCaptor<Custodia> custodiaCaptor = ArgumentCaptor.forClass(Custodia.class);
@@ -231,11 +232,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         DistribuicaoResponseDTO distClienteA = resultado.stream()
@@ -285,11 +286,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamentoComPequeno);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamentoComPequeno, LocalDate.now());
 
         // Assert
         // Cliente pequeno não deve aparecer nas distribuições pois quantidade será zero
@@ -304,15 +305,15 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         // 2 clientes × 2 ativos = 4 eventos IR
-        verify(eventoIRService, times(4)).publicarEventoIR(any(), any(), anyInt(), any());
+        verify(eventoIRService, times(4)).publicarEventoIR(any(), any(), anyInt(), any(), any());
     }
 
     @Test
@@ -322,11 +323,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         verify(residuoService, times(2)).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
@@ -349,11 +350,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamentoUnico);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrupamentoUnico, LocalDate.now());
 
         // Assert
         assertThat(resultado).hasSize(1);
@@ -388,11 +389,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoMultiplo, agrupamento);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoMultiplo, agrupamento, LocalDate.now());
 
         // Assert
         assertThat(resultado).hasSize(2);
@@ -415,12 +416,12 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoVazio, agrupamento);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoVazio, agrupamento, LocalDate.now());
 
         // Assert
         assertThat(resultado).isEmpty();
         verify(custodiaRepository, never()).save(any(Custodia.class));
-        verify(eventoIRService, never()).publicarEventoIR(any(), any(), anyInt(), any());
+        verify(eventoIRService, never()).publicarEventoIR(any(), any(), anyInt(), any(), any());
         verify(residuoService, never()).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
     }
 
@@ -446,11 +447,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaMaster()).thenReturn(Collections.emptyList());
         when(custodiaRepository.findCustodiaCliente(anyLong())).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrup3Clientes);
+        List<DistribuicaoResponseDTO> resultado = custodiaService.distribuirCustodias(calculoAtivos, agrup3Clientes, LocalDate.now());
 
         // Assert
         assertThat(resultado).hasSize(3);
@@ -480,11 +481,11 @@ class CustodiaServiceTest {
         when(custodiaRepository.findCustodiaCliente(1L)).thenReturn(List.of(custodiaCliente1));
         when(custodiaRepository.findCustodiaCliente(2L)).thenReturn(Collections.emptyList());
         when(custodiaRepository.save(any(Custodia.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any());
+        doNothing().when(eventoIRService).publicarEventoIR(any(), any(), anyInt(), any(), any());
         doNothing().when(residuoService).atualizarResiduosCustodiaMaster(any(), anyInt(), any(), any());
 
         // Act
-        custodiaService.distribuirCustodias(calculoAtivos, agrupamento);
+        custodiaService.distribuirCustodias(calculoAtivos, agrupamento, LocalDate.now());
 
         // Assert
         ArgumentCaptor<Custodia> custodiaCaptor = ArgumentCaptor.forClass(Custodia.class);
