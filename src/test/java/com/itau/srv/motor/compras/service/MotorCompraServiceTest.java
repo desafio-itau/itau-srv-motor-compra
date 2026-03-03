@@ -9,6 +9,7 @@ import com.itau.srv.motor.compras.dto.motorcompra.MotorCompraRequestDTO;
 import com.itau.srv.motor.compras.dto.motorcompra.MotorCompraResponseDTO;
 import com.itau.srv.motor.compras.dto.ordemcompra.CalcularQuantidadeAtivoResponse;
 import com.itau.srv.motor.compras.dto.ordemcompra.OrdemCompraResponseDTO;
+import com.itau.srv.motor.compras.feign.ClientesFeignClient;
 import com.itau.srv.motor.compras.model.Custodia;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
 import com.itau.srv.motor.compras.repository.OrdemCompraRepository;
@@ -50,6 +51,9 @@ class MotorCompraServiceTest {
 
     @Mock
     private OrdemCompraRepository ordemCompraRepository;
+
+    @Mock
+    private ClientesFeignClient clientesFeignClient;
 
     @InjectMocks
     private MotorCompraService motorCompraService;
