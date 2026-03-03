@@ -22,7 +22,7 @@ public interface EventoIRRepository extends JpaRepository<EventoIR, Long> {
     List<EventoIR> findVendidoPorClienteEData(Long clienteId, LocalDate data);
 
     @Query("""
-        SELECT new com.itau.srv.motor.compras.dto.EventoIRSumarioDTO(
+        SELECT new com.itau.srv.motor.compras.dto.ir.EventoIRSumarioDTO(
             CAST(e.dataEvento AS LocalDate),
             COALESCE(SUM(CASE WHEN e.tipo = 'IR_DEDO_DURO' THEN e.valorBase ELSE 0 END), 0)
         )

@@ -202,11 +202,15 @@ public class CustodiaService {
         log.info("Custodias master encontradas: {}", custodiasMaster.size());
 
         for (Custodia custodia : custodiasMaster) {
-            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
-            valorTotalResiduo = valorTotalResiduo.add(cotacao.precoFechamento().multiply(BigDecimal.valueOf(custodia.getQuantidade())));
+            if (custodia.getQuantidade() > 0) {
+                CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
+                valorTotalResiduo = valorTotalResiduo.add(cotacao.precoFechamento().multiply(BigDecimal.valueOf(custodia.getQuantidade())));
 
-            custodias.add(custodiaMapper.mapearParaCustodiaResponse(custodia, cotacao.precoFechamento()));
+                custodias.add(custodiaMapper.mapearParaCustodiaResponse(custodia, cotacao.precoFechamento()));
+            }
         }
+
+        log.info("Custodias master ativas (quantidade > 0): {}", custodias.size());
 
         return custodiaMapper.mapearParaCustodiaMasterResponseDTO(contaMaster, custodias, valorTotalResiduo);
     }
@@ -219,12 +223,15 @@ public class CustodiaService {
         List<Custodia> custodiasCliente = custodiaRepository.findCustodiaCliente(clienteId);
         log.info("Custodias encontradas: {}", custodiasCliente.size());
 
+        // Filtrar apenas custodias com quantidade > 0
         for (Custodia custodia : custodiasCliente) {
-            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
-
-            custodiasResponse.add(custodiaMapper.mapearParaCustodiaResponse(custodia, cotacao.precoFechamento()));
+            if (custodia.getQuantidade() > 0) {
+                CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
+                custodiasResponse.add(custodiaMapper.mapearParaCustodiaResponse(custodia, cotacao.precoFechamento()));
+            }
         }
 
+        log.info("Custodias ativas (quantidade > 0): {}", custodiasResponse.size());
         return custodiasResponse;
     }
 }
