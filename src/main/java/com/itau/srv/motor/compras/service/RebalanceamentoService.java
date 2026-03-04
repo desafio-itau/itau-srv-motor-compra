@@ -12,9 +12,12 @@ import com.itau.srv.motor.compras.feign.CotacaoFeignClient;
 import com.itau.srv.motor.compras.kafka.IREventProducer;
 import com.itau.srv.motor.compras.mapper.EventoIRMapper;
 import com.itau.srv.motor.compras.model.Custodia;
+import com.itau.srv.motor.compras.model.Rebalanceamento;
 import com.itau.srv.motor.compras.model.enums.TipoIR;
+import com.itau.srv.motor.compras.model.enums.TipoRebalanceamento;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
 import com.itau.srv.motor.compras.repository.EventoIRRepository;
+import com.itau.srv.motor.compras.repository.RebalanceamentoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +44,7 @@ public class RebalanceamentoService {
     private final IREventProducer irEventProducer;
     private final EventoIRRepository eventoIRRepository;
     private final EventoIRMapper eventoIRMapper;
+    private final RebalanceamentoRepository rebalanceamentoRepository;
 
     @Transactional
     public void executarRebalanceamento(Long cestaAnteriorId, Long cestaAtualId, LocalDate dataExecucao) {
@@ -132,13 +136,21 @@ public class RebalanceamentoService {
                 );
                 vendasDoCliente.add(venda);
 
-                // Zerar custodia (não podemos deletar devido à FK com distribuicoes)
                 custodia.setQuantidade(0);
                 custodiaRepository.save(custodia);
                 log.info("  [VENDA] Custodia zerada (ativo saiu da cesta)");
 
                 publicarIRDedoDuroVenda(cliente.clienteId(), cliente.cpf(), ticker,
                         quantidadeVender, precoVenda, dataExecucao);
+
+                salvarRebalanceamento(
+                        cliente.clienteId(),
+                        TipoRebalanceamento.MUDANCA_CESTA,
+                        ticker,
+                        null,
+                        valorVenda,
+                        dataExecucao
+                );
 
                 totalArrecadado = totalArrecadado.add(valorVenda);
             }
@@ -331,6 +343,16 @@ public class RebalanceamentoService {
 
         publicarIRDedoDuroCompra(cliente.clienteId(), cliente.cpf(), ticker,
                 quantidadeCompra, precoCompra, dataExecucao);
+
+        BigDecimal valorCompra = precoCompra.multiply(BigDecimal.valueOf(quantidadeCompra));
+        salvarRebalanceamento(
+                cliente.clienteId(),
+                com.itau.srv.motor.compras.model.enums.TipoRebalanceamento.MUDANCA_CESTA,
+                null,
+                ticker,
+                valorCompra,
+                dataExecucao
+        );
     }
 
     private void processarRebalanceamentoAtivosPermaneceram(
@@ -393,7 +415,6 @@ public class RebalanceamentoService {
                     quantidadeAtual, quantidadeAlvo);
 
             if (quantidadeAtual > quantidadeAlvo) {
-                // VENDER excesso
                 int quantidadeVender = quantidadeAtual - quantidadeAlvo;
                 log.info("  [REBALANCEAMENTO] VENDER {} ações de {}", quantidadeVender, ticker);
 
@@ -401,7 +422,6 @@ public class RebalanceamentoService {
                         custodiaAtual, precoCotacao, dataExecucao);
 
             } else if (quantidadeAtual < quantidadeAlvo) {
-                // COMPRAR deficit
                 int quantidadeComprar = quantidadeAlvo - quantidadeAtual;
                 log.info("  [REBALANCEAMENTO] COMPRAR {} ações de {}", quantidadeComprar, ticker);
 
@@ -426,7 +446,6 @@ public class RebalanceamentoService {
 
         log.info("  [VENDA REBAL] Valor venda: R$ {} | Lucro: R$ {}", valorVenda, lucro);
 
-        // Atualizar quantidade (zerar se vender tudo, não podemos deletar devido à FK)
         int novaQuantidade = custodia.getQuantidade() - quantidadeVender;
         custodia.setQuantidade(novaQuantidade);
         custodiaRepository.save(custodia);
@@ -439,6 +458,15 @@ public class RebalanceamentoService {
 
         publicarIRDedoDuroVenda(cliente.clienteId(), cliente.cpf(), ticker,
                 quantidadeVender, precoVenda, dataExecucao);
+
+        salvarRebalanceamento(
+                cliente.clienteId(),
+                TipoRebalanceamento.DESVIO,
+                ticker,
+                null,
+                valorVenda,
+                dataExecucao
+        );
     }
 
     private void publicarIRDedoDuroCompra(
@@ -505,5 +533,30 @@ public class RebalanceamentoService {
                         ItemCotacaoAtualResponseDTO::ticker,
                         ItemCotacaoAtualResponseDTO::percentual
                 ));
+    }
+
+    private void salvarRebalanceamento(
+            Long clienteId,
+            com.itau.srv.motor.compras.model.enums.TipoRebalanceamento tipo,
+            String tickerVendido,
+            String tickerComprado,
+            BigDecimal valorVenda,
+            LocalDate dataExecucao) {
+
+        Rebalanceamento rebalanceamento = new Rebalanceamento();
+        rebalanceamento.setClientId(clienteId);
+        rebalanceamento.setTipo(tipo);
+        rebalanceamento.setTickerVendido(tickerVendido != null ? tickerVendido : "-");
+        rebalanceamento.setTickerComprado(tickerComprado != null ? tickerComprado : "-");
+        rebalanceamento.setValorVenda(valorVenda);
+        rebalanceamento.setDataRebalanceamento(dataExecucao.atTime(LocalTime.now()));
+
+        rebalanceamentoRepository.save(rebalanceamento);
+
+        log.debug("  [REBALANCEAMENTO] Salvo - Cliente: {} | Tipo: {} | Vendido: {} | Comprado: {} | Valor: R$ {}",
+                clienteId, tipo,
+                tickerVendido != null ? tickerVendido : "N/A",
+                tickerComprado != null ? tickerComprado : "N/A",
+                valorVenda);
     }
 }
