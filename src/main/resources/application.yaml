@@ -31,6 +31,18 @@ spring:
 server:
   port: 8082
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
+  packages-to-scan: com.itau.srv.motor.compras.controller
+  paths-to-match: /api/**
+
 external-endpoints:
   itau-srv-clientes:
     name: itau-srv-clientes
