@@ -13,6 +13,7 @@ import com.itau.srv.motor.compras.mapper.EventoIRMapper;
 import com.itau.srv.motor.compras.model.Custodia;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
 import com.itau.srv.motor.compras.repository.EventoIRRepository;
+import com.itau.srv.motor.compras.repository.RebalanceamentoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,9 @@ class RebalanceamentoServiceTest {
 
     @Mock
     private EventoIRMapper eventoIRMapper;
+
+    @Mock
+    private RebalanceamentoRepository rebalanceamentoRepository;
 
     @InjectMocks
     private RebalanceamentoService rebalanceamentoService;
