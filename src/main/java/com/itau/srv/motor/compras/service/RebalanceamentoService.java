@@ -12,9 +12,12 @@ import com.itau.srv.motor.compras.feign.CotacaoFeignClient;
 import com.itau.srv.motor.compras.kafka.IREventProducer;
 import com.itau.srv.motor.compras.mapper.EventoIRMapper;
 import com.itau.srv.motor.compras.model.Custodia;
+import com.itau.srv.motor.compras.model.Rebalanceamento;
 import com.itau.srv.motor.compras.model.enums.TipoIR;
+import com.itau.srv.motor.compras.model.enums.TipoRebalanceamento;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
 import com.itau.srv.motor.compras.repository.EventoIRRepository;
+import com.itau.srv.motor.compras.repository.RebalanceamentoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +44,7 @@ public class RebalanceamentoService {
     private final IREventProducer irEventProducer;
     private final EventoIRRepository eventoIRRepository;
     private final EventoIRMapper eventoIRMapper;
+    private final RebalanceamentoRepository rebalanceamentoRepository;
 
     @Transactional
     public void executarRebalanceamento(Long cestaAnteriorId, Long cestaAtualId, LocalDate dataExecucao) {
@@ -132,13 +136,21 @@ public class RebalanceamentoService {
                 );
                 vendasDoCliente.add(venda);
 
-                // Zerar custodia (não podemos deletar devido à FK com distribuicoes)
                 custodia.setQuantidade(0);
                 custodiaRepository.save(custodia);
                 log.info("  [VENDA] Custodia zerada (ativo saiu da cesta)");
 
                 publicarIRDedoDuroVenda(cliente.clienteId(), cliente.cpf(), ticker,
                         quantidadeVender, precoVenda, dataExecucao);
+
+                salvarRebalanceamento(
+                        cliente.clienteId(),
+                        TipoRebalanceamento.MUDANCA_CESTA,
+                        ticker,
+                        null,
+                        valorVenda,
+                        dataExecucao
+                );
 
                 totalArrecadado = totalArrecadado.add(valorVenda);
             }
@@ -331,6 +343,16 @@ public class RebalanceamentoService {
 
         publicarIRDedoDuroCompra(cliente.clienteId(), cliente.cpf(), ticker,
                 quantidadeCompra, precoCompra, dataExecucao);
+
+        BigDecimal valorCompra = precoCompra.multiply(BigDecimal.valueOf(quantidadeCompra));
+        salvarRebalanceamento(
+                cliente.clienteId(),
+                com.itau.srv.motor.compras.model.enums.TipoRebalanceamento.MUDANCA_CESTA,
+                null,
+                ticker,
+                valorCompra,
+                dataExecucao
+        );
     }
 
     private void processarRebalanceamentoAtivosPermaneceram(
@@ -393,7 +415,6 @@ public class RebalanceamentoService {
                     quantidadeAtual, quantidadeAlvo);
 
             if (quantidadeAtual > quantidadeAlvo) {
-                // VENDER excesso
                 int quantidadeVender = quantidadeAtual - quantidadeAlvo;
                 log.info("  [REBALANCEAMENTO] VENDER {} ações de {}", quantidadeVender, ticker);
 
@@ -401,7 +422,6 @@ public class RebalanceamentoService {
                         custodiaAtual, precoCotacao, dataExecucao);
 
             } else if (quantidadeAtual < quantidadeAlvo) {
-                // COMPRAR deficit
                 int quantidadeComprar = quantidadeAlvo - quantidadeAtual;
                 log.info("  [REBALANCEAMENTO] COMPRAR {} ações de {}", quantidadeComprar, ticker);
 
@@ -426,7 +446,6 @@ public class RebalanceamentoService {
 
         log.info("  [VENDA REBAL] Valor venda: R$ {} | Lucro: R$ {}", valorVenda, lucro);
 
-        // Atualizar quantidade (zerar se vender tudo, não podemos deletar devido à FK)
         int novaQuantidade = custodia.getQuantidade() - quantidadeVender;
         custodia.setQuantidade(novaQuantidade);
         custodiaRepository.save(custodia);
@@ -439,6 +458,15 @@ public class RebalanceamentoService {
 
         publicarIRDedoDuroVenda(cliente.clienteId(), cliente.cpf(), ticker,
                 quantidadeVender, precoVenda, dataExecucao);
+
+        salvarRebalanceamento(
+                cliente.clienteId(),
+                TipoRebalanceamento.DESVIO,
+                ticker,
+                null,
+                valorVenda,
+                dataExecucao
+        );
     }
 
     private void publicarIRDedoDuroCompra(
@@ -505,5 +533,250 @@ public class RebalanceamentoService {
                         ItemCotacaoAtualResponseDTO::ticker,
                         ItemCotacaoAtualResponseDTO::percentual
                 ));
+    }
+
+    private void salvarRebalanceamento(
+            Long clienteId,
+            com.itau.srv.motor.compras.model.enums.TipoRebalanceamento tipo,
+            String tickerVendido,
+            String tickerComprado,
+            BigDecimal valorVenda,
+            LocalDate dataExecucao) {
+
+        Rebalanceamento rebalanceamento = new Rebalanceamento();
+        rebalanceamento.setClienteId(clienteId);
+        rebalanceamento.setTipo(tipo);
+        rebalanceamento.setTickerVendido(tickerVendido != null ? tickerVendido : "-");
+        rebalanceamento.setTickerComprado(tickerComprado != null ? tickerComprado : "-");
+        rebalanceamento.setValorVenda(valorVenda);
+        rebalanceamento.setDataRebalanceamento(dataExecucao.atTime(LocalTime.now()));
+
+        rebalanceamentoRepository.save(rebalanceamento);
+
+        log.debug("  [REBALANCEAMENTO] Salvo - Cliente: {} | Tipo: {} | Vendido: {} | Comprado: {} | Valor: R$ {}",
+                clienteId, tipo,
+                tickerVendido != null ? tickerVendido : "N/A",
+                tickerComprado != null ? tickerComprado : "N/A",
+                valorVenda);
+    }
+
+    @Transactional
+    public RebalanceamentoDesvioResponseDTO executarRebalanceamentoPorDesvio(
+            BigDecimal limiarDesvio, LocalDate dataExecucao) {
+
+        log.info("=== INICIANDO REBALANCEAMENTO POR DESVIO ===");
+        log.info("Limiar de desvio: {} pontos percentuais", limiarDesvio);
+        log.info("Data execução: {}", dataExecucao);
+
+        CestaResponseDTO cestaAtiva = cestaFeignClient.obterCestaAtiva();
+        log.info("Cesta ativa: {} (Ativos: {})", cestaAtiva.nome(), cestaAtiva.itens().size());
+
+        List<ClienteResponseDTO> clientesAtivos = clientesFeignClient.listarClientesAtivos();
+        log.info("Total de clientes ativos: {}", clientesAtivos.size());
+
+        int totalClientesRebalanceados = 0;
+        int totalOperacoes = 0;
+        List<ClienteRebalanceadoDTO> clientesRebalanceados = new ArrayList<>();
+
+        for (ClienteResponseDTO cliente : clientesAtivos) {
+            log.info("\n>>> ANALISANDO CLIENTE: {} (ID: {})", cliente.nome(), cliente.clienteId());
+
+            List<OperacaoRebalanceamentoDTO> operacoes =
+                    processarRebalanceamentoDesvioCliente(cliente, cestaAtiva, limiarDesvio, dataExecucao);
+
+            if (!operacoes.isEmpty()) {
+                totalClientesRebalanceados++;
+                totalOperacoes += operacoes.size();
+
+                clientesRebalanceados.add(new ClienteRebalanceadoDTO(
+                        cliente.clienteId(),
+                        cliente.nome(),
+                        operacoes
+                ));
+
+                log.info("  [CLIENTE REBALANCEADO] {} operações realizadas", operacoes.size());
+            } else {
+                log.info("  [SEM DESVIO] Carteira dentro do limiar aceitável");
+            }
+        }
+
+        log.info("=== REBALANCEAMENTO POR DESVIO CONCLUÍDO ===");
+        log.info("Clientes processados: {}", clientesAtivos.size());
+        log.info("Clientes rebalanceados: {}", totalClientesRebalanceados);
+        log.info("Total de operações: {}", totalOperacoes);
+
+        return new com.itau.srv.motor.compras.dto.rebalanceamento.RebalanceamentoDesvioResponseDTO(
+                clientesAtivos.size(),
+                totalClientesRebalanceados,
+                totalOperacoes,
+                clientesRebalanceados,
+                String.format("Rebalanceamento por desvio executado com sucesso. %d/%d clientes rebalanceados.",
+                        totalClientesRebalanceados, clientesAtivos.size())
+        );
+    }
+
+    private List<OperacaoRebalanceamentoDTO> processarRebalanceamentoDesvioCliente(
+            ClienteResponseDTO cliente,
+            CestaResponseDTO cestaAtiva,
+            BigDecimal limiarDesvio,
+            LocalDate dataExecucao) {
+
+        List<OperacaoRebalanceamentoDTO> operacoes = new ArrayList<>();
+
+        List<Custodia> custodiasCliente = custodiaRepository.findCustodiaCliente(cliente.clienteId());
+
+        custodiasCliente = custodiasCliente.stream()
+                .filter(c -> c.getQuantidade() > 0)
+                .collect(java.util.stream.Collectors.toList());
+
+        if (custodiasCliente.isEmpty()) {
+            log.info("  [SEM CUSTÓDIA] Cliente não possui ações (ou todas zeradas)");
+            return operacoes;
+        }
+
+        BigDecimal valorTotalCarteira = BigDecimal.ZERO;
+        Map<String, Custodia> custodiasPorTicker = new HashMap<>();
+
+        for (Custodia custodia : custodiasCliente) {
+            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
+            BigDecimal valorAtivo = cotacao.precoFechamento().multiply(BigDecimal.valueOf(custodia.getQuantidade()));
+            valorTotalCarteira = valorTotalCarteira.add(valorAtivo);
+            custodiasPorTicker.put(custodia.getTicker(), custodia);
+        }
+
+        log.info("  [VALOR CARTEIRA] R$ {}", valorTotalCarteira);
+
+        if (valorTotalCarteira.compareTo(BigDecimal.ZERO) == 0) {
+            log.info("  [CARTEIRA VAZIA] Valor total zero");
+            return operacoes;
+        }
+
+        for (ItemCotacaoAtualResponseDTO item : cestaAtiva.itens()) {
+            String ticker = item.ticker();
+            BigDecimal percentualAlvo = item.percentual();
+
+            Custodia custodia = custodiasPorTicker.get(ticker);
+            BigDecimal proporcaoAtual;
+
+            if (custodia == null || custodia.getQuantidade() == 0) {
+                proporcaoAtual = BigDecimal.ZERO;
+            } else {
+                CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(ticker);
+                BigDecimal valorAtivo = cotacao.precoFechamento().multiply(BigDecimal.valueOf(custodia.getQuantidade()));
+                proporcaoAtual = valorAtivo.divide(valorTotalCarteira, 4, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"));
+            }
+
+            BigDecimal desvio = proporcaoAtual.subtract(percentualAlvo).abs();
+
+            log.info("  [{}] Proporção Atual: {}% | Alvo: {}% | Desvio: {}%",
+                    ticker, proporcaoAtual.setScale(2, RoundingMode.HALF_UP),
+                    percentualAlvo.setScale(2, RoundingMode.HALF_UP),
+                    desvio.setScale(2, RoundingMode.HALF_UP));
+
+            if (desvio.compareTo(limiarDesvio) > 0) {
+                log.info("    [DESVIO DETECTADO] {} está fora do limiar de {}%", ticker, limiarDesvio);
+
+                CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(ticker);
+                BigDecimal valorAlvo = valorTotalCarteira.multiply(percentualAlvo).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+                int quantidadeAlvo = valorAlvo.divide(cotacao.precoFechamento(), 0, RoundingMode.DOWN).intValue();
+                int quantidadeAtual = custodia != null ? custodia.getQuantidade() : 0;
+
+                if (proporcaoAtual.compareTo(percentualAlvo) > 0) {
+                    int quantidadeVender = quantidadeAtual - quantidadeAlvo;
+
+                    if (quantidadeVender > 0 && custodia != null) {
+                        log.info("    [VENDA] Vender {} ações de {} a R$ {}",
+                                quantidadeVender, ticker, cotacao.precoFechamento());
+
+                        BigDecimal valorOperacao = cotacao.precoFechamento()
+                                .multiply(BigDecimal.valueOf(quantidadeVender));
+
+                        custodia.setQuantidade(quantidadeAtual - quantidadeVender);
+                        custodia.setDataUltimaAtualizacao(dataExecucao.atStartOfDay());
+                        custodiaRepository.save(custodia);
+
+                        publicarIRDedoDuroVenda(cliente.clienteId(), cliente.cpf(), ticker,
+                                quantidadeVender, cotacao.precoFechamento(), dataExecucao);
+
+                        salvarRebalanceamento(
+                                cliente.clienteId(),
+                                TipoRebalanceamento.DESVIO,
+                                ticker,
+                                null,
+                                valorOperacao,
+                                dataExecucao
+                        );
+
+                        operacoes.add(new OperacaoRebalanceamentoDTO(
+                                ticker,
+                                "VENDA",
+                                quantidadeVender,
+                                cotacao.precoFechamento(),
+                                valorOperacao,
+                                proporcaoAtual,
+                                percentualAlvo,
+                                desvio
+                        ));
+                    }
+                } else {
+                    int quantidadeComprar = quantidadeAlvo - quantidadeAtual;
+
+                    if (quantidadeComprar > 0) {
+                        log.info("    [COMPRA] Comprar {} ações de {} a R$ {}",
+                                quantidadeComprar, ticker, cotacao.precoFechamento());
+
+                        BigDecimal valorOperacao = cotacao.precoFechamento()
+                                .multiply(BigDecimal.valueOf(quantidadeComprar));
+
+                        if (custodia == null) {
+                            custodia = new Custodia();
+                            custodia.setTicker(ticker);
+                            custodia.setContaGraficaId(cliente.contaGrafica().id());
+                            custodia.setQuantidade(quantidadeComprar);
+                            custodia.setPrecoMedio(cotacao.precoFechamento());
+                            custodia.setDataUltimaAtualizacao(dataExecucao.atStartOfDay());
+                        } else {
+                            BigDecimal numerador = custodia.getPrecoMedio()
+                                    .multiply(BigDecimal.valueOf(quantidadeAtual))
+                                    .add(cotacao.precoFechamento().multiply(BigDecimal.valueOf(quantidadeComprar)));
+                            BigDecimal denominador = BigDecimal.valueOf(quantidadeAtual + quantidadeComprar);
+                            BigDecimal novoPrecoMedio = numerador.divide(denominador, 2, RoundingMode.HALF_UP);
+
+                            custodia.setQuantidade(quantidadeAtual + quantidadeComprar);
+                            custodia.setPrecoMedio(novoPrecoMedio);
+                            custodia.setDataUltimaAtualizacao(dataExecucao.atStartOfDay());
+                        }
+
+                        custodiaRepository.save(custodia);
+
+                        publicarIRDedoDuroCompra(cliente.clienteId(), cliente.cpf(), ticker,
+                                quantidadeComprar, cotacao.precoFechamento(), dataExecucao);
+
+                        salvarRebalanceamento(
+                                cliente.clienteId(),
+                                TipoRebalanceamento.DESVIO,
+                                null,
+                                ticker,
+                                valorOperacao,
+                                dataExecucao
+                        );
+
+                        operacoes.add(new OperacaoRebalanceamentoDTO(
+                                ticker,
+                                "COMPRA",
+                                quantidadeComprar,
+                                cotacao.precoFechamento(),
+                                valorOperacao,
+                                proporcaoAtual,
+                                percentualAlvo,
+                                desvio
+                        ));
+                    }
+                }
+            }
+        }
+
+        return operacoes;
     }
 }
