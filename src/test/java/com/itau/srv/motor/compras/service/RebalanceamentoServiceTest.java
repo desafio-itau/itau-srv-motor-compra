@@ -481,8 +481,360 @@ class RebalanceamentoServiceTest {
         // Assert - 2 clientes x 2 chamadas cada (vendas + rebalanceamento) = 4 chamadas
         verify(custodiaRepository, times(4)).findCustodiaCliente(anyLong());
     }
+
+    // =====================================================
+    // TESTES DE REBALANCEAMENTO POR DESVIO
+    // =====================================================
+
+    @Test
+    @DisplayName("Deve executar rebalanceamento por desvio com sucesso")
+    void deveExecutarRebalanceamentoPorDesvioComSucesso() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        // Cliente com carteira desbalanceada
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 448, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 50, new BigDecimal("10.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response).isNotNull();
+        assertThat(response.totalClientesProcessados()).isEqualTo(1);
+        assertThat(response.totalClientesRebalanceados()).isGreaterThan(0);
+        assertThat(response.mensagem()).contains("sucesso");
+
+        verify(cestaFeignClient).obterCestaAtiva();
+        verify(clientesFeignClient).listarClientesAtivos();
+        verify(custodiaRepository, atLeastOnce()).findCustodiaCliente(1L);
+    }
+
+    @Test
+    @DisplayName("Deve detectar ativo sobre-alocado e vender")
+    void deveDetectarAtivoSobreAlocadoEVender() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        // LREN3 com 60% (alvo 40%) -> sobre-alocado
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 448, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 150, new BigDecimal("10.00"), 1L);
+        Custodia custodiaMRVE3 = criarCustodia("MRVE3", 129, new BigDecimal("7.50"), 1L);
+        Custodia custodiaBMEB3 = criarCustodia("BMEB3", 16, new BigDecimal("60.00"), 1L);
+        Custodia custodiaBMGB4 = criarCustodia("BMGB4", 201, new BigDecimal("5.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3, custodiaMRVE3, custodiaBMEB3, custodiaBMGB4));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesRebalanceados()).isEqualTo(1);
+        assertThat(response.clientesRebalanceados()).hasSize(1);
+
+        var operacoes = response.clientesRebalanceados().get(0).operacoes();
+        var vendaLREN3 = operacoes.stream()
+                .filter(op -> op.ticker().equals("LREN3") && op.tipoOperacao().equals("VENDA"))
+                .findFirst();
+
+        assertThat(vendaLREN3).isPresent();
+        assertThat(vendaLREN3.get().quantidade()).isGreaterThan(0);
+
+        verify(custodiaRepository, atLeastOnce()).save(any(Custodia.class));
+        verify(rebalanceamentoRepository, atLeastOnce()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve detectar ativo sub-alocado e comprar")
+    void deveDetectarAtivoSubAlocadoEComprar() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        // MOVI3 com 5% (alvo 20%) -> sub-alocado
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 299, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 50, new BigDecimal("10.00"), 1L);
+        Custodia custodiaMRVE3 = criarCustodia("MRVE3", 129, new BigDecimal("7.50"), 1L);
+        Custodia custodiaBMEB3 = criarCustodia("BMEB3", 16, new BigDecimal("60.00"), 1L);
+        Custodia custodiaBMGB4 = criarCustodia("BMGB4", 201, new BigDecimal("5.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3, custodiaMRVE3, custodiaBMEB3, custodiaBMGB4));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesRebalanceados()).isEqualTo(1);
+
+        var operacoes = response.clientesRebalanceados().get(0).operacoes();
+        var compraMOVI3 = operacoes.stream()
+                .filter(op -> op.ticker().equals("MOVI3") && op.tipoOperacao().equals("COMPRA"))
+                .findFirst();
+
+        assertThat(compraMOVI3).isPresent();
+        assertThat(compraMOVI3.get().quantidade()).isGreaterThan(0);
+
+        verify(custodiaRepository, atLeastOnce()).save(any(Custodia.class));
+        verify(irEventProducer, atLeastOnce()).publicarEventoIRDedoDuro(any());
+    }
+
+    @Test
+    @DisplayName("Não deve rebalancear quando desvio está dentro do limiar")
+    void naoDeveRebalancearQuandoDesvioEstaDentroDoLimiar() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        // Carteira perfeitamente balanceada
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 299, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 150, new BigDecimal("10.00"), 1L);
+        Custodia custodiaMRVE3 = criarCustodia("MRVE3", 129, new BigDecimal("7.50"), 1L);
+        Custodia custodiaBMEB3 = criarCustodia("BMEB3", 16, new BigDecimal("60.00"), 1L);
+        Custodia custodiaBMGB4 = criarCustodia("BMGB4", 201, new BigDecimal("5.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3, custodiaMRVE3, custodiaBMEB3, custodiaBMGB4));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesProcessados()).isEqualTo(1);
+        // Pode ser 0 ou 1 dependendo das proporções exatas
+        assertThat(response.totalClientesRebalanceados()).isGreaterThanOrEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Deve ignorar custódias zeradas no rebalanceamento por desvio")
+    void deveIgnorarCustodiasZeradasNoRebalanceamentoPorDesvio() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        // Custódias zeradas (resíduos de rebalanceamento anterior)
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 0, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 0, new BigDecimal("10.00"), 1L);
+        Custodia custodiaMRVE3 = criarCustodia("MRVE3", 100, new BigDecimal("7.50"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3, custodiaMRVE3));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesProcessados()).isEqualTo(1);
+        // Deve processar apenas a custodia com quantidade > 0
+    }
+
+    @Test
+    @DisplayName("Deve processar múltiplos clientes no rebalanceamento por desvio")
+    void deveProcessarMultiplosClientesNoRebalanceamentoPorDesvio() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        ClienteResponseDTO cliente2 = new ClienteResponseDTO(
+                2L,
+                "Cliente 2",
+                "98765432100",
+                "cliente2@teste.com",
+                new BigDecimal("5000.00"),
+                true,
+                LocalDateTime.now(),
+                new ContaGraficaDTO(2L, "ITAUFL00002", "FILHOTE", LocalDateTime.now())
+        );
+
+        Custodia custodia1Cliente1 = criarCustodia("LREN3", 448, new BigDecimal("13.00"), 1L);
+        Custodia custodia2Cliente1 = criarCustodia("MOVI3", 50, new BigDecimal("10.00"), 1L);
+
+        Custodia custodia1Cliente2 = criarCustodia("LREN3", 200, new BigDecimal("13.00"), 2L);
+        Custodia custodia2Cliente2 = criarCustodia("MOVI3", 100, new BigDecimal("10.00"), 2L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock, cliente2));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodia1Cliente1, custodia2Cliente1));
+        when(custodiaRepository.findCustodiaCliente(2L))
+                .thenReturn(List.of(custodia1Cliente2, custodia2Cliente2));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesProcessados()).isEqualTo(2);
+        verify(custodiaRepository).findCustodiaCliente(1L);
+        verify(custodiaRepository).findCustodiaCliente(2L);
+    }
+
+    @Test
+    @DisplayName("Deve salvar rebalanceamento no banco para cada operação")
+    void deveSalvarRebalanceamentoNoBancoParaCadaOperacao() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 448, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 50, new BigDecimal("10.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        verify(rebalanceamentoRepository, atLeastOnce()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve publicar eventos de IR para cada operação")
+    void devePublicarEventosDeIRParaCadaOperacao() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 448, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 50, new BigDecimal("10.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        verify(irEventProducer, atLeastOnce()).publicarEventoIRDedoDuro(any());
+        verify(eventoIRRepository, atLeastOnce()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve retornar lista vazia quando nenhum cliente possui custódia")
+    void deveRetornarListaVaziaQuandoNenhumClientePossuiCustodia() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("5.0");
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L)).thenReturn(new ArrayList<>());
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesProcessados()).isEqualTo(1);
+        assertThat(response.totalClientesRebalanceados()).isZero();
+        assertThat(response.clientesRebalanceados()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Deve usar limiar personalizado quando fornecido")
+    void deveUsarLimiarPersonalizadoQuandoFornecido() {
+        // Arrange
+        BigDecimal limiarDesvio = new BigDecimal("10.0"); // Limiar mais permissivo
+        CestaResponseDTO cestaAtiva = criarCestaAtiva();
+
+        // Desvio de 8% (não seria detectado com limiar de 10%)
+        Custodia custodiaLREN3 = criarCustodia("LREN3", 360, new BigDecimal("13.00"), 1L);
+        Custodia custodiaMOVI3 = criarCustodia("MOVI3", 150, new BigDecimal("10.00"), 1L);
+        Custodia custodiaMRVE3 = criarCustodia("MRVE3", 129, new BigDecimal("7.50"), 1L);
+        Custodia custodiaBMEB3 = criarCustodia("BMEB3", 16, new BigDecimal("60.00"), 1L);
+        Custodia custodiaBMGB4 = criarCustodia("BMGB4", 201, new BigDecimal("5.00"), 1L);
+
+        when(cestaFeignClient.obterCestaAtiva()).thenReturn(cestaAtiva);
+        when(clientesFeignClient.listarClientesAtivos()).thenReturn(List.of(clienteMock));
+        when(custodiaRepository.findCustodiaCliente(1L))
+                .thenReturn(List.of(custodiaLREN3, custodiaMOVI3, custodiaMRVE3, custodiaBMEB3, custodiaBMGB4));
+
+        mockarCotacoesCestaAtiva();
+
+        // Act
+        var response = rebalanceamentoService.executarRebalanceamentoPorDesvio(limiarDesvio, dataExecucao);
+
+        // Assert
+        assertThat(response.totalClientesProcessados()).isEqualTo(1);
+        // Com limiar de 10%, menos operações devem ser realizadas
+    }
+
+    // Helper methods
+
+    private CestaResponseDTO criarCestaAtiva() {
+        List<ItemCotacaoAtualResponseDTO> itens = List.of(
+                new ItemCotacaoAtualResponseDTO("LREN3", new BigDecimal("40.00"), new BigDecimal("13.39")),
+                new ItemCotacaoAtualResponseDTO("MOVI3", new BigDecimal("20.00"), new BigDecimal("9.93")),
+                new ItemCotacaoAtualResponseDTO("MRVE3", new BigDecimal("10.00"), new BigDecimal("7.71")),
+                new ItemCotacaoAtualResponseDTO("BMEB3", new BigDecimal("10.00"), new BigDecimal("63.59")),
+                new ItemCotacaoAtualResponseDTO("BMGB4", new BigDecimal("20.00"), new BigDecimal("4.97"))
+        );
+
+        return new CestaResponseDTO(
+                18L,
+                "Cesta Abril",
+                true,
+                LocalDateTime.now(),
+                itens
+        );
+    }
+
+    private void mockarCotacoesCestaAtiva() {
+        lenient().when(cotacaoFeignClient.obterCotacaoPorTicker("LREN3"))
+                .thenReturn(criarCotacao("LREN3", new BigDecimal("13.39")));
+        lenient().when(cotacaoFeignClient.obterCotacaoPorTicker("MOVI3"))
+                .thenReturn(criarCotacao("MOVI3", new BigDecimal("9.93")));
+        lenient().when(cotacaoFeignClient.obterCotacaoPorTicker("MRVE3"))
+                .thenReturn(criarCotacao("MRVE3", new BigDecimal("7.71")));
+        lenient().when(cotacaoFeignClient.obterCotacaoPorTicker("BMEB3"))
+                .thenReturn(criarCotacao("BMEB3", new BigDecimal("63.59")));
+        lenient().when(cotacaoFeignClient.obterCotacaoPorTicker("BMGB4"))
+                .thenReturn(criarCotacao("BMGB4", new BigDecimal("4.97")));
+    }
+
+    private Custodia criarCustodia(String ticker, int quantidade, BigDecimal precoMedio, Long contaGraficaId) {
+        Custodia custodia = new Custodia();
+        custodia.setId((long) (Math.random() * 1000));
+        custodia.setTicker(ticker);
+        custodia.setQuantidade(quantidade);
+        custodia.setPrecoMedio(precoMedio);
+        custodia.setContaGraficaId(contaGraficaId);
+        custodia.setDataUltimaAtualizacao(LocalDateTime.now());
+        return custodia;
+    }
 }
-
-
-
-

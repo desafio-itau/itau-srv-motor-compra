@@ -19,7 +19,7 @@ public class Rebalanceamento {
     private Long id;
 
     @Column(nullable = false)
-    private Long clientId;
+    private Long clienteId;
 
     @Enumerated(EnumType.STRING)
     private TipoRebalanceamento tipo;

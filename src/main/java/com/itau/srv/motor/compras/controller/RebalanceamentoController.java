@@ -1,7 +1,10 @@
 package com.itau.srv.motor.compras.controller;
 
 import com.itau.srv.motor.compras.dto.ir.RebalancementoEventDTO;
+import com.itau.srv.motor.compras.dto.rebalanceamento.RebalanceamentoDesvioRequestDTO;
+import com.itau.srv.motor.compras.dto.rebalanceamento.RebalanceamentoDesvioResponseDTO;
 import com.itau.srv.motor.compras.kafka.RebalanceamentoEventProducer;
+import com.itau.srv.motor.compras.service.RebalanceamentoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class RebalanceamentoController {
 
     private final RebalanceamentoEventProducer rebalanceamentoEventProducer;
+    private final RebalanceamentoService rebalanceamentoService;
 
     @Operation(
             summary = "Publicar evento de rebalanceamento",
@@ -50,5 +54,41 @@ public class RebalanceamentoController {
         rebalanceamentoEventProducer.publicarEventoRebalanceamento(evento);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Executar rebalanceamento por desvio de proporção",
+            description = "Analisa todas as carteiras dos clientes ativos e realiza rebalanceamento " +
+                    "quando a proporção atual de um ativo diverge significativamente do percentual " +
+                    "da cesta recomendada (limiar padrão: 5 pontos percentuais). " +
+                    "Vende ativos sobre-alocados e compra ativos sub-alocados."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Rebalanceamento por desvio executado com sucesso",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = RebalanceamentoDesvioResponseDTO.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "400", description = "Erro de validação: limiar ou data inválidos", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Erro ao executar rebalanceamento", content = @Content)
+    })
+    @PostMapping("/desvio")
+    public ResponseEntity<RebalanceamentoDesvioResponseDTO> executarRebalanceamentoPorDesvio(
+            @RequestBody(description = "Dados do rebalanceamento por desvio", required = true)
+            @org.springframework.web.bind.annotation.RequestBody RebalanceamentoDesvioRequestDTO request
+    ) {
+        log.info("Iniciando rebalanceamento por desvio - Limiar: {}%, Data: {}",
+                request.limiarDesvio(), request.dataExecucao());
+
+        RebalanceamentoDesvioResponseDTO response = rebalanceamentoService
+                .executarRebalanceamentoPorDesvio(request.limiarDesvio(), request.dataExecucao());
+
+        log.info("Rebalanceamento por desvio finalizado - Clientes rebalanceados: {}/{}",
+                response.totalClientesRebalanceados(), response.totalClientesProcessados());
+
+        return ResponseEntity.ok(response);
     }
 }
