@@ -34,7 +34,6 @@ public class MotorCompraService {
     private final OrdemCompraRepository ordemCompraRepository;
     private final ClientesFeignClient clientesFeignClient;
 
-    @Transactional
     public MotorCompraResponseDTO acionarMotorCompra(MotorCompraRequestDTO request) {
         if (ordemCompraRepository.existsByDataExecucao(request.dataReferencia())) {
             log.error("Uma compra já foi executada nessa data");
