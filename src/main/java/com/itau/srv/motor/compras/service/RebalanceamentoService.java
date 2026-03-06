@@ -627,7 +627,7 @@ public class RebalanceamentoService {
 
         custodiasCliente = custodiasCliente.stream()
                 .filter(c -> c.getQuantidade() > 0)
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
 
         if (custodiasCliente.isEmpty()) {
             log.info("  [SEM CUSTÓDIA] Cliente não possui ações (ou todas zeradas)");
@@ -638,10 +638,56 @@ public class RebalanceamentoService {
         Map<String, Custodia> custodiasPorTicker = new HashMap<>();
 
         for (Custodia custodia : custodiasCliente) {
-            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(custodia.getTicker());
+            String ticker = custodia.getTicker();
+
+            boolean isFracionario = ticker.endsWith("F");
+            String tickerBase = isFracionario ? ticker.substring(0, ticker.length() - 1) : ticker;
+
+            CotacaoResponseDTO cotacao = cotacaoFeignClient.obterCotacaoPorTicker(ticker);
             BigDecimal valorAtivo = cotacao.precoFechamento().multiply(BigDecimal.valueOf(custodia.getQuantidade()));
             valorTotalCarteira = valorTotalCarteira.add(valorAtivo);
-            custodiasPorTicker.put(custodia.getTicker(), custodia);
+
+            if (isFracionario) {
+                Custodia base = custodiasPorTicker.get(tickerBase);
+                if (base != null) {
+                    Custodia merged = new Custodia();
+                    merged.setId(base.getId());
+                    merged.setTicker(base.getTicker());
+                    merged.setContaGraficaId(base.getContaGraficaId());
+                    merged.setPrecoMedio(base.getPrecoMedio());
+                    merged.setQuantidade(base.getQuantidade() + custodia.getQuantidade());
+                    merged.setDataUltimaAtualizacao(base.getDataUltimaAtualizacao());
+                    custodiasPorTicker.put(tickerBase, merged);
+                    log.info("  [FRACIONÁRIO] {} ({} ações) somado ao base {} (total: {} ações)",
+                            ticker, custodia.getQuantidade(), tickerBase, merged.getQuantidade());
+                } else {
+                    Custodia merged = new Custodia();
+                    merged.setTicker(tickerBase);
+                    merged.setContaGraficaId(custodia.getContaGraficaId());
+                    merged.setPrecoMedio(custodia.getPrecoMedio());
+                    merged.setQuantidade(custodia.getQuantidade());
+                    merged.setDataUltimaAtualizacao(custodia.getDataUltimaAtualizacao());
+                    custodiasPorTicker.put(tickerBase, merged);
+                    log.info("  [FRACIONÁRIO SEM BASE] {} ({} ações) mapeado como base {}",
+                            ticker, custodia.getQuantidade(), tickerBase);
+                }
+            } else {
+                Custodia existente = custodiasPorTicker.get(tickerBase);
+                if (existente != null) {
+                    Custodia merged = new Custodia();
+                    merged.setId(custodia.getId());
+                    merged.setTicker(custodia.getTicker());
+                    merged.setContaGraficaId(custodia.getContaGraficaId());
+                    merged.setPrecoMedio(custodia.getPrecoMedio());
+                    merged.setQuantidade(custodia.getQuantidade() + existente.getQuantidade());
+                    merged.setDataUltimaAtualizacao(custodia.getDataUltimaAtualizacao());
+                    custodiasPorTicker.put(tickerBase, merged);
+                    log.info("  [BASE + FRACIONÁRIO] {} ({} ações base + {} ações frac = {} total)",
+                            tickerBase, custodia.getQuantidade(), existente.getQuantidade(), merged.getQuantidade());
+                } else {
+                    custodiasPorTicker.put(tickerBase, custodia);
+                }
+            }
         }
 
         log.info("  [VALOR CARTEIRA] R$ {}", valorTotalCarteira);

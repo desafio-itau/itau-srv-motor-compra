@@ -12,9 +12,12 @@ import com.itau.srv.motor.compras.dto.ordemcompra.CalcularQuantidadeAtivoRespons
 import com.itau.srv.motor.compras.feign.ContasGraficasFeignClient;
 import com.itau.srv.motor.compras.feign.CotacaoFeignClient;
 import com.itau.srv.motor.compras.mapper.CustodiaMapper;
+import com.itau.srv.motor.compras.mapper.DistribuicaoMapper;
 import com.itau.srv.motor.compras.model.Custodia;
+import com.itau.srv.motor.compras.model.Distribuicao;
 import com.itau.srv.motor.compras.model.OrdemCompra;
 import com.itau.srv.motor.compras.repository.CustodiaRepository;
+import com.itau.srv.motor.compras.repository.DistribuicaoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,11 +38,13 @@ import java.util.Map;
 public class CustodiaService {
 
     private final CustodiaRepository custodiaRepository;
+    private final DistribuicaoRepository distribuicaoRepository;
     private final EventoIRService eventoIRService;
     private final ResiduoService residuoService;
     private final ContasGraficasFeignClient contasGraficasFeignClient;
     private final CotacaoFeignClient cotacaoFeignClient;
     private final CustodiaMapper custodiaMapper;
+    private final DistribuicaoMapper distribuicaoMapper;
 
     @Value("${motor.compras.conta-master-id}")
     private Long contaMasterId;
@@ -118,9 +123,20 @@ public class CustodiaService {
                     novaCustodia.setContaGraficaId(cliente.contaId());
                     novaCustodia.setPrecoMedio(precoMedio);
 
-                    custodiaRepository.save(novaCustodia);
+                    Custodia custodiaSalva = custodiaRepository.save(novaCustodia);
                     log.info("   Custodia criada: {} ações de {} com PM = R$ {}",
                             quantidadeParaCliente, ordemCompra.getTicker(), precoMedio);
+
+                    Distribuicao distribuicao = new Distribuicao();
+                    distribuicao.setOrdemCompra(ordemCompra);
+                    distribuicao.setCustodia(custodiaSalva);
+                    distribuicao.setTicker(ordemCompra.getTicker());
+                    distribuicao.setQuantidade(quantidadeParaCliente);
+                    distribuicao.setPrecoUnitario(ordemCompra.getPrecoUnitario());
+                    distribuicao.setDataDistribuicao(dataReferencia.atStartOfDay());
+                    distribuicaoRepository.save(distribuicao);
+                    log.info("   Distribuição salva para cliente {} - {} ações de {}",
+                            cliente.clienteId(), quantidadeParaCliente, ordemCompra.getTicker());
 
                     eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario(), dataReferencia);
 
@@ -146,9 +162,20 @@ public class CustodiaService {
                     custodiaExistente.setQuantidade(qtdAnterior + qtdNova);
                     custodiaExistente.setPrecoMedio(novoPrecoMedio);
 
-                    custodiaRepository.save(custodiaExistente);
+                    Custodia custodiaAtualizada = custodiaRepository.save(custodiaExistente);
                     log.info("   Custodia atualizada: {} ações de {} com PM = R$ {}",
-                            custodiaExistente.getQuantidade(), ordemCompra.getTicker(), novoPrecoMedio);
+                            custodiaAtualizada.getQuantidade(), ordemCompra.getTicker(), novoPrecoMedio);
+
+                    Distribuicao distribuicao = new Distribuicao();
+                    distribuicao.setOrdemCompra(ordemCompra);
+                    distribuicao.setCustodia(custodiaAtualizada);
+                    distribuicao.setTicker(ordemCompra.getTicker());
+                    distribuicao.setQuantidade(quantidadeParaCliente);
+                    distribuicao.setPrecoUnitario(ordemCompra.getPrecoUnitario());
+                    distribuicao.setDataDistribuicao(dataReferencia.atStartOfDay());
+                    distribuicaoRepository.save(distribuicao);
+                    log.info("   Distribuição salva para cliente {} - {} ações de {}",
+                            cliente.clienteId(), quantidadeParaCliente, ordemCompra.getTicker());
 
                     eventoIRService.publicarEventoIR(cliente, ordemCompra.getTicker(), quantidadeParaCliente, ordemCompra.getPrecoUnitario(), dataReferencia);
                 }
